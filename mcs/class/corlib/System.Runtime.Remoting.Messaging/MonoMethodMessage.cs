@@ -41,11 +41,14 @@ namespace System.Runtime.Remoting.Messaging {
 	
 	[Serializable]
 	[StructLayout (LayoutKind.Sequential)]
-	internal class MonoMethodMessage : IMethodCallMessage, IMethodReturnMessage, IInternalMessage {
-
+	internal class MonoMethodMessage
+#if !DISABLE_REMOTING
+		: IMethodCallMessage, IMethodReturnMessage, IInternalMessage
+#endif
+	{
 #pragma warning disable 649
 		#region keep in sync with MonoMessage in object-internals.h
-		MonoMethod method;
+		RuntimeMethodInfo method;
 		object []  args;
 		string []  names;
 		byte [] arg_types; /* 1 == IN; 2 == OUT; 3 == INOUT; 4 == COPY OUT */
@@ -59,16 +62,14 @@ namespace System.Runtime.Remoting.Messaging {
 
 		string uri;
 
+#if !DISABLE_REMOTING
 		MCMDictionary properties;
+		Identity identity;
+#endif
 
 		Type[] methodSignature;
 
-		Identity identity;
-
-		internal static String CallContextKey = "__CallContext";
-		internal static String UriKey           = "__Uri";
-
-		internal void InitMessage (MonoMethod method, object [] out_args)
+		internal void InitMessage (RuntimeMethodInfo method, object [] out_args)
 		{
 			this.method = method;
 			ParameterInfo[] paramInfo = method.GetParametersInternal ();
@@ -104,28 +105,43 @@ namespace System.Runtime.Remoting.Messaging {
 		public MonoMethodMessage (MethodBase method, object [] out_args)
 		{
 			if (method != null)
-				InitMessage ((MonoMethod)method, out_args);
+				InitMessage ((RuntimeMethodInfo)method, out_args);
 			else
 				args = null;
 		}
 
-		public MonoMethodMessage (Type type, string method_name, object [] in_args)
+		internal MonoMethodMessage (MethodInfo minfo, object [] in_args, object [] out_args)
 		{
-			// fixme: consider arg types
-			MethodInfo minfo = type.GetMethod (method_name);
-			
-			InitMessage ((MonoMethod)minfo, null);
+			InitMessage ((RuntimeMethodInfo)minfo, out_args);
 
 			int len = in_args.Length;
 			for (int i = 0; i < len; i++) {
 				args [i] = in_args [i];
 			}
 		}
+
+		private static MethodInfo GetMethodInfo (Type type, string methodName)
+		{
+			// fixme: consider arg types
+			MethodInfo minfo = type.GetMethod(methodName);
+			if (minfo == null)
+				throw new ArgumentException (String.Format("Could not find '{0}' in {1}", methodName, type), "methodName");
+			return minfo;
+		}
 		
+		public MonoMethodMessage (Type type, string methodName, object [] in_args)
+			: this (GetMethodInfo (type, methodName), in_args, null)
+		{
+		}
+
 		public IDictionary Properties {
 			get {
+#if DISABLE_REMOTING
+				throw new PlatformNotSupportedException ();
+#else
 				if (properties == null) properties = new MCMDictionary (this);
 				return properties;
+#endif
 			}
 		}
 
@@ -357,6 +373,7 @@ namespace System.Runtime.Remoting.Messaging {
 			return null;
 		}
 
+#if !DISABLE_REMOTING
 		Identity IInternalMessage.TargetIdentity
 		{
 			get { return identity; }
@@ -367,6 +384,7 @@ namespace System.Runtime.Remoting.Messaging {
 		{
 			return properties != null;
 		}
+#endif
 
 		public bool IsAsync
 		{
@@ -384,8 +402,10 @@ namespace System.Runtime.Remoting.Messaging {
 			{
 				// FIXME: ideally, the OneWay type would be set by the runtime
 				
+#if !DISABLE_REMOTING
 				if (call_type == CallType.Sync && RemotingServices.IsOneWay (method))
 					call_type = CallType.OneWay;
+#endif
 				return call_type;
 			}
 		}

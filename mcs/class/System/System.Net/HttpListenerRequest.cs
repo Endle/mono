@@ -28,8 +28,6 @@
 // WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 //
 
-#if SECURITY_DEP
-
 using System.Collections;
 using System.Collections.Specialized;
 using System.Globalization;
@@ -194,12 +192,12 @@ namespace System.Net {
 			return false;
 		}
 
-		internal void FinishInitialization ()
+		internal bool FinishInitialization ()
 		{
 			string host = UserHostName;
 			if (version > HttpVersion.Version10 && (host == null || host.Length == 0)) {
 				context.ErrorMessage = "Invalid host name";
-				return;
+				return true;
 			}
 
 			string path;
@@ -225,7 +223,7 @@ namespace System.Net {
 
 			if (!Uri.TryCreate (base_uri + path, UriKind.Absolute, out url)){
 				context.ErrorMessage = WebUtility.HtmlEncode ("Invalid url: " + base_uri + path);
-				return;
+				return true;
 			}
 
 			CreateQueryString (url.Query);
@@ -241,7 +239,7 @@ namespace System.Net {
 				// 'identity' is not valid!
 				if (t_encoding != null && !is_chunked) {
 					context.Connection.SendError (null, 501);
-					return;
+					return false;
 				}
 			}
 
@@ -249,7 +247,7 @@ namespace System.Net {
 				if (String.Compare (method, "POST", StringComparison.OrdinalIgnoreCase) == 0 ||
 				    String.Compare (method, "PUT", StringComparison.OrdinalIgnoreCase) == 0) {
 					context.Connection.SendError (null, 411);
-					return;
+					return false;
 				}
 			}
 
@@ -257,6 +255,8 @@ namespace System.Net {
 				ResponseStream output = context.Connection.GetResponseStream ();
 				output.InternalWrite (_100continue, 0, _100continue.Length);
 			}
+
+			return true;
 		}
 
 		internal static string Unquote (String str) {
@@ -332,16 +332,20 @@ namespace System.Net {
 							if (current != null) {
 								cookies.Add (current);
 							}
-							current = new Cookie ();
-							int idx = str.IndexOf ('=');
-							if (idx > 0) {
-								current.Name = str.Substring (0, idx).Trim ();
-								current.Value =  str.Substring (idx + 1).Trim ();
-							} else {
-								current.Name = str.Trim ();
-								current.Value = String.Empty;
+							try {
+								current = new Cookie ();
+								int idx = str.IndexOf ('=');
+								if (idx > 0) {
+									current.Name = str.Substring (0, idx).Trim ();
+									current.Value =  str.Substring (idx + 1).Trim ();
+								} else {
+									current.Name = str.Trim ();
+									current.Value = String.Empty;
+								}
+								current.Version = version;
+							} catch (CookieException) {
+								current = null;
 							}
-							current.Version = version;
 						}
 					}
 					if (current != null) {
@@ -370,7 +374,7 @@ namespace System.Net {
 						return false;
 					if (InputStream.EndRead (ares) <= 0)
 						return true;
-				} catch (ObjectDisposedException e) {
+				} catch (ObjectDisposedException) {
 					input_stream = null;
 					return true;
 				} catch {
@@ -404,7 +408,7 @@ namespace System.Net {
 		}
 
 		public long ContentLength64 {
-			get { return content_length; }
+			get { return is_chunked ? -1 : content_length; }
 		}
 
 		public string ContentType {
@@ -579,5 +583,4 @@ namespace System.Net {
 		}
 	}
 }
-#endif
 

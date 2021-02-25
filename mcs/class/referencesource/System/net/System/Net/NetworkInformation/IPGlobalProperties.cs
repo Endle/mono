@@ -14,32 +14,7 @@ namespace System.Net.NetworkInformation
     {
         public static IPGlobalProperties GetIPGlobalProperties()
         {
-#if MONODROID
-            return new AndroidIPGlobalProperties ();
-#elif MONOTOUCH || XAMMAC || MOBILE_STATIC
-            return new UnixIPGlobalProperties ();
-#elif MONO
-            switch (Environment.OSVersion.Platform) {
-            case PlatformID.Unix:
-                MibIPGlobalProperties impl = null;
-                if (Directory.Exists (MibIPGlobalProperties.ProcDir)) {
-                    impl = new MibIPGlobalProperties (MibIPGlobalProperties.ProcDir);
-                    if (File.Exists (impl.StatisticsFile))
-                        return impl;
-                }
-                if (Directory.Exists (MibIPGlobalProperties.CompatProcDir)) {
-                    impl = new MibIPGlobalProperties (MibIPGlobalProperties.CompatProcDir);
-                    if (File.Exists (impl.StatisticsFile))
-                        return impl;
-                }
-                return new UnixIPGlobalProperties ();
-            default:
-                return new Win32IPGlobalProperties ();
-            }
-#else          
-            (new NetworkInformationPermission(NetworkInformationAccess.Read)).Demand();
-            return new SystemIPGlobalProperties();
-#endif
+            return IPGlobalPropertiesFactoryPal.Create ();
         }
 
         internal static IPGlobalProperties InternalGetIPGlobalProperties()

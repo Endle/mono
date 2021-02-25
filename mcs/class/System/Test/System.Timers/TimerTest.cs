@@ -287,6 +287,7 @@ namespace MonoTests.System.Timers
 		}
 
 		[Test] // bug https://bugzilla.novell.com/show_bug.cgi?id=325368
+		[Category ("NotWasm")]
 		public void EnabledInElapsed ()
 		{
 			var elapsedCount = 0;
@@ -303,12 +304,13 @@ namespace MonoTests.System.Timers
 			};
 			timer.Start ();
 
-			Assert.IsTrue (mre.Wait (500), "#1 re-enabling timer in Elapsed didn't work");
+			Assert.IsTrue (mre.Wait (1000), "#1 re-enabling timer in Elapsed didn't work");
 			Assert.AreEqual (2, elapsedCount, "#2 wrong elapsedCount");
 			timer.Stop ();
 		}
 
 		[Test]
+		[Category ("NotWasm")]
 		public void AutoResetEventFalseStopsFiringElapsed ()
 		{
 			var elapsedCount = 0;
@@ -323,12 +325,13 @@ namespace MonoTests.System.Timers
 			};
 			timer.Start ();
 
-			Assert.IsFalse (mre.Wait (500), "#1 AutoResetEvent=false didn't stop firing Elapsed, elapsedCount=" + elapsedCount);
+			Assert.IsFalse (mre.Wait (1000), "#1 AutoReset=false didn't stop firing Elapsed, elapsedCount=" + elapsedCount);
 			Assert.AreEqual (1, elapsedCount, "#2 wrong elapsedCount");
 			timer.Stop ();
 		}
 
 		[Test]
+		[Category ("NotWasm")] // Object.onAbort
 		public void TestRaceCondition ()
 		{
 			Assert.IsTrue (new RaceTest (true).Success, "#1");

@@ -1,5 +1,6 @@
-/*
- * sgen-archdep.h: Architecture dependent parts of SGen.
+/**
+ * \file
+ * Architecture dependent parts of SGen.
  *
  * Copyright 2001-2003 Ximian, Inc
  * Copyright 2003-2010 Novell, Inc.
@@ -26,18 +27,17 @@
 
 #elif defined(TARGET_AMD64)
 
+#ifdef HOST_WIN32
+/* The Windows x64 ABI defines no "red zone". The ABI states:
+   "All memory beyond the current address of RSP is considered volatile" */
+#define REDZONE_SIZE	0
+#else
 #define REDZONE_SIZE	128
+#endif
 
 #elif defined(TARGET_POWERPC)
 
 #define REDZONE_SIZE	224
-
-/* MS_BLOCK_SIZE must be a multiple of the system pagesize, which for some
-   architectures is 64k.  */
-#if defined(TARGET_POWERPC) || defined(TARGET_POWERPC64)
-#define ARCH_MIN_MS_BLOCK_SIZE	(64*1024)
-#define ARCH_MIN_MS_BLOCK_SIZE_SHIFT	16
-#endif
 
 #elif defined(TARGET_ARM)
 
@@ -45,12 +45,10 @@
 
 #elif defined(TARGET_ARM64)
 
-#ifdef __linux__
-#define REDZONE_SIZE    0
-#elif defined(__APPLE__)
+#if defined(__APPLE__)
 #define REDZONE_SIZE	128
 #else
-#error "Not implemented."
+#define REDZONE_SIZE 0
 #endif
 
 #elif defined(__mips__)
@@ -62,6 +60,14 @@
 #define REDZONE_SIZE	0
 
 #elif defined(__sparc__)
+
+#define REDZONE_SIZE	0
+
+#elif defined (TARGET_RISCV)
+
+#define REDZONE_SIZE (0)
+
+#elif defined (TARGET_WASM)
 
 #define REDZONE_SIZE	0
 

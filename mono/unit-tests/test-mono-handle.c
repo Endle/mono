@@ -13,16 +13,20 @@
 #include <mono/metadata/handle.h>
 
 static void
-test2_arena_push_pop ()
+test2_arena_push_pop (void)
 {
 	HandleStack *h = mono_handle_stack_alloc ();
 	mono_handle_stack_free (h);
 }
 
-
+#ifdef __cplusplus
+extern "C"
+#endif
+int
+test_mono_handle_main (void);
 
 int
-main (int argc, const char* argv[])
+test_mono_handle_main (void)
 {
 	test2_arena_push_pop ();
 

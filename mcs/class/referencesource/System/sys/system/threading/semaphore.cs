@@ -87,7 +87,11 @@ namespace System.Threading
                 if(null != name && 0 != name.Length && NativeMethods.ERROR_INVALID_HANDLE == errorCode)
                     throw new WaitHandleCannotBeOpenedException(SR.GetString(SR.WaitHandleCannotBeOpenedException_InvalidHandle,name));
                
+#if MONO
+                InternalResources.WinIOError(errorCode, "");
+#else
                 InternalResources.WinIOError();
+#endif
             }
             this.SafeWaitHandle = myHandle;
         }
@@ -161,7 +165,12 @@ namespace System.Threading
             {
                 if(null != name && 0 != name.Length && NativeMethods.ERROR_INVALID_HANDLE == errorCode)
                     throw new WaitHandleCannotBeOpenedException(SR.GetString(SR.WaitHandleCannotBeOpenedException_InvalidHandle,name));
+
+#if MONO
+                InternalResources.WinIOError(errorCode, "");
+#else
                 InternalResources.WinIOError();
+#endif
             }
             createdNew = errorCode != NativeMethods.ERROR_ALREADY_EXISTS;
             this.SafeWaitHandle = myHandle;
@@ -242,6 +251,9 @@ namespace System.Threading
 #endif
 
         // This exists in WaitHandle, but is oddly ifdefed for some reason...
+#if MONO
+        new
+#endif
         private enum OpenExistingResult
         {
             Success,
@@ -310,7 +322,11 @@ namespace System.Threading
                 if (null != name && 0 != name.Length && NativeMethods.ERROR_INVALID_HANDLE == errorCode)
                     return OpenExistingResult.NameInvalid;
                 //this is for passed through NativeMethods Errors
+#if MONO
+                InternalResources.WinIOError(errorCode, "");
+#else
                 InternalResources.WinIOError();
+#endif
             }
             result = new Semaphore(myHandle);
             return OpenExistingResult.Success;
@@ -349,7 +365,7 @@ namespace System.Threading
             //Non-Zero return 
 
 #if MONO
-            if (!ReleaseSemaphore_internal(Handle, releaseCount, out previousCount))
+            if (!ReleaseSemaphore_internal(SafeWaitHandle.DangerousGetHandle(), releaseCount, out previousCount))
 #else
             if (!SafeNativeMethods.ReleaseSemaphore(SafeWaitHandle, releaseCount, out previousCount))
 #endif
@@ -378,16 +394,33 @@ namespace System.Threading
 #endif
 
 #if MONO
+        internal unsafe static IntPtr CreateSemaphore_internal (int initialCount, int maximumCount,
+		string name, out int errorCode)
+	{
+		// FIXME Check for embedded nuls in name.
+		fixed (char *fixed_name = name)
+			return CreateSemaphore_icall (initialCount, maximumCount,
+				fixed_name, name?.Length ?? 0, out errorCode);
+	}
+
+        private unsafe static IntPtr OpenSemaphore_internal (string name, SemaphoreRights rights, out int errorCode)
+	{
+		// FIXME Check for embedded nuls in name.
+		fixed (char *fixed_name = name)
+			return OpenSemaphore_icall (fixed_name, name?.Length ?? 0, rights, out errorCode);
+	}
+
         [MethodImplAttribute(MethodImplOptions.InternalCall)]
-        internal static extern IntPtr CreateSemaphore_internal (
-            int initialCount, int maximumCount, string name, out int errorCode);
+        private unsafe static extern IntPtr CreateSemaphore_icall (
+            int initialCount, int maximumCount, char *name, int name_length, out int errorCode);
+
+        [MethodImplAttribute (MethodImplOptions.InternalCall)]
+        private unsafe static extern IntPtr OpenSemaphore_icall (char *name, int name_length,
+		SemaphoreRights rights, out int errorCode);
 
         [MethodImplAttribute(MethodImplOptions.InternalCall)]
         internal static extern bool ReleaseSemaphore_internal (
             IntPtr handle, int releaseCount, out int previousCount);
-
-        [MethodImplAttribute (MethodImplOptions.InternalCall)]
-        private static extern IntPtr OpenSemaphore_internal (string name, SemaphoreRights rights, out int errorCode);
 #endif
     }
 }

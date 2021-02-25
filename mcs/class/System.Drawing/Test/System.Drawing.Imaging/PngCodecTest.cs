@@ -35,10 +35,11 @@ using System.Security.Permissions;
 using System.Text;
 using NUnit.Framework;
 
+using MonoTests.Helpers;
+
 namespace MonoTests.System.Drawing.Imaging {
 
 	[TestFixture]
-	[SecurityPermission (SecurityAction.Deny, UnmanagedCode = true)]
 	public class PngCodecTest {
 
 		/* Get suffix to add to the filename */
@@ -58,17 +59,6 @@ namespace MonoTests.System.Drawing.Imaging {
 				s += "-mono";
 
 			return s;
-		}
-
-		/* Get the input directory depending on the runtime*/
-		internal string getInFile (string file)
-		{
-			string sRslt = Path.GetFullPath ("../System.Drawing/" + file);
-
-			if (!File.Exists (sRslt))
-				sRslt = "Test/System.Drawing/" + file;
-
-			return sRslt;
 		}
 
 		private bool IsArm64Process ()
@@ -96,7 +86,7 @@ namespace MonoTests.System.Drawing.Imaging {
 		[Test]
 		public void Bitmap1bitFeatures ()
 		{
-			string sInFile = getInFile ("bitmaps/1bit.png");
+			string sInFile = TestResourceHelper.GetFullPathOfResource ("Test/System.Drawing/bitmaps/1bit.png");
 			using (Bitmap bmp = new Bitmap (sInFile)) {
 				GraphicsUnit unit = GraphicsUnit.World;
 				RectangleF rect = bmp.GetBounds (ref unit);
@@ -124,7 +114,7 @@ namespace MonoTests.System.Drawing.Imaging {
 		[Test]
 		public void Bitmap1bitPixels ()
 		{
-			string sInFile = getInFile ("bitmaps/1bit.png");
+			string sInFile = TestResourceHelper.GetFullPathOfResource ("Test/System.Drawing/bitmaps/1bit.png");
 			using (Bitmap bmp = new Bitmap (sInFile)) {
 #if false
 				for (int x = 0; x < bmp.Width; x += 32) {
@@ -206,7 +196,7 @@ namespace MonoTests.System.Drawing.Imaging {
 		[Test]
 		public void Bitmap1bitData ()
 		{
-			string sInFile = getInFile ("bitmaps/1bit.png");
+			string sInFile = TestResourceHelper.GetFullPathOfResource ("Test/System.Drawing/bitmaps/1bit.png");
 			using (Bitmap bmp = new Bitmap (sInFile)) {
 				BitmapData data = bmp.LockBits (new Rectangle (0, 0, bmp.Width, bmp.Height), ImageLockMode.ReadOnly, PixelFormat.Format24bppRgb);
 				try {
@@ -309,12 +299,13 @@ namespace MonoTests.System.Drawing.Imaging {
 
 		/* Checks bitmap features on a known 2bbp bitmap */
 		[Test]
+		[Category("NotWorking")]
 		public void Bitmap2bitFeatures ()
 		{
 			if (IsArm64Process ())
 				Assert.Ignore ("https://bugzilla.xamarin.com/show_bug.cgi?id=41171");
 
-			string sInFile = getInFile ("bitmaps/81674-2bpp.png");
+			string sInFile = TestResourceHelper.GetFullPathOfResource ("Test/System.Drawing/bitmaps/81674-2bpp.png");
 			using (Bitmap bmp = new Bitmap (sInFile)) {
 				GraphicsUnit unit = GraphicsUnit.World;
 				RectangleF rect = bmp.GetBounds (ref unit);
@@ -340,12 +331,13 @@ namespace MonoTests.System.Drawing.Imaging {
 		}
 
 		[Test]
+		[Category("NotWorking")]
 		public void Bitmap2bitPixels ()
 		{
 			if (IsArm64Process ())
 				Assert.Ignore ("https://bugzilla.xamarin.com/show_bug.cgi?id=41171");
 
-			string sInFile = getInFile ("bitmaps/81674-2bpp.png");
+			string sInFile = TestResourceHelper.GetFullPathOfResource ("Test/System.Drawing/bitmaps/81674-2bpp.png");
 			using (Bitmap bmp = new Bitmap (sInFile)) {
 #if false
 				for (int x = 0; x < bmp.Width; x += 32) {
@@ -375,12 +367,13 @@ namespace MonoTests.System.Drawing.Imaging {
 		}
 
 		[Test]
+		[Category("NotWorking")]
 		public void Bitmap2bitData ()
 		{
 			if (IsArm64Process ())
 				Assert.Ignore ("https://bugzilla.xamarin.com/show_bug.cgi?id=41171");
 
-			string sInFile = getInFile ("bitmaps/81674-2bpp.png");
+			string sInFile = TestResourceHelper.GetFullPathOfResource ("Test/System.Drawing/bitmaps/81674-2bpp.png");
 			using (Bitmap bmp = new Bitmap (sInFile)) {
 				BitmapData data = bmp.LockBits (new Rectangle (0, 0, bmp.Width, bmp.Height), ImageLockMode.ReadOnly, PixelFormat.Format24bppRgb);
 				try {
@@ -441,7 +434,7 @@ namespace MonoTests.System.Drawing.Imaging {
 		[Test]
 		public void Bitmap4bitFeatures ()
 		{
-			string sInFile = getInFile ("bitmaps/4bit.png");
+			string sInFile = TestResourceHelper.GetFullPathOfResource ("Test/System.Drawing/bitmaps/4bit.png");
 			using (Bitmap bmp = new Bitmap (sInFile)) {
 				GraphicsUnit unit = GraphicsUnit.World;
 				RectangleF rect = bmp.GetBounds (ref unit);
@@ -483,7 +476,7 @@ namespace MonoTests.System.Drawing.Imaging {
 		[Test]
 		public void Bitmap4bitPixels ()
 		{
-			string sInFile = getInFile ("bitmaps/4bit.png");
+			string sInFile = TestResourceHelper.GetFullPathOfResource ("Test/System.Drawing/bitmaps/4bit.png");
 			using (Bitmap bmp = new Bitmap (sInFile)) {
 #if false
 				for (int x = 0; x < bmp.Width; x += 32) {
@@ -566,7 +559,7 @@ namespace MonoTests.System.Drawing.Imaging {
 		[Test]
 		public void Bitmap4bitData ()
 		{
-			string sInFile = getInFile ("bitmaps/4bit.png");
+			string sInFile = TestResourceHelper.GetFullPathOfResource ("Test/System.Drawing/bitmaps/4bit.png");
 			using (Bitmap bmp = new Bitmap (sInFile)) {
 				BitmapData data = bmp.LockBits (new Rectangle (0, 0, bmp.Width, bmp.Height), ImageLockMode.ReadOnly, PixelFormat.Format24bppRgb);
 				try {

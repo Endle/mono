@@ -18,6 +18,8 @@
 #include "sgen-entry-stream.h"
 #include "sgen-grep-binprot.h"
 
+static int file_version = 0;
+
 #ifdef BINPROT_HAS_HEADER
 #define PACKED_SUFFIX	p
 #else
@@ -57,13 +59,23 @@ typedef int64_t mword;
 #define MAX_ENTRY_SIZE (1 << 10)
 
 static int
-read_entry (EntryStream *stream, void *data)
+read_entry (EntryStream *stream, void *data, unsigned char *windex)
 {
 	unsigned char type;
 	ssize_t size;
 
 	if (read_stream (stream, &type, 1) <= 0)
 		return SGEN_PROTOCOL_EOF;
+
+	if (windex) {
+		if (file_version >= 2) {
+			if (read_stream (stream, windex, 1) <= 0)
+				return SGEN_PROTOCOL_EOF;
+		} else {
+			*windex = !!(WORKER (type));
+		}
+	}
+
 	switch (TYPE (type)) {
 
 #define BEGIN_PROTOCOL_ENTRY0(method) \
@@ -168,11 +180,11 @@ is_always_match (int type)
 
 #include <mono/sgen/sgen-protocol-def.h>
 
-	default: assert (0);
+	default:
+		assert (0);
+		return FALSE;
 	}
 }
-
-#define WORKER_PREFIX(t)	(WORKER ((t)) ? "w" : " ")
 
 enum { NO_COLOR = -1 };
 
@@ -210,10 +222,10 @@ print_entry_content (int entries_size, PrintEntry *entries, gboolean color_outpu
 			printf ("%lld", *(long long*) entries [i].data);
 			break;
 		case TYPE_SIZE:
-			printf ("%"MWORD_FORMAT_SPEC_D, *(mword*) entries [i].data);
+			printf ("%" MWORD_FORMAT_SPEC_D, *(mword*) entries [i].data);
 			break;
 		case TYPE_POINTER:
-			printf ("0x%"MWORD_FORMAT_SPEC_P, *(mword*) entries [i].data);
+			printf ("0x%" MWORD_FORMAT_SPEC_P, *(mword*) entries [i].data);
 			break;
 		case TYPE_BOOL:
 			printf ("%s", *(gboolean*) entries [i].data ? "true" : "false");
@@ -238,10 +250,13 @@ index_color (int index, int num_nums, int *match_indices)
 }
 
 static void
-print_entry (int type, void *data, int num_nums, int *match_indices, gboolean color_output)
+print_entry (int type, void *data, int num_nums, int *match_indices, gboolean color_output, unsigned char worker_index)
 {
 	const char *always_prefix = is_always_match (type) ? "  " : "";
-	printf ("%s%s ", WORKER_PREFIX (type), always_prefix);
+	if (worker_index)
+		printf ("w%-2d%s ", worker_index, always_prefix);
+	else
+		printf ("   %s ", always_prefix);
 
 	switch (TYPE (type)) {
 
@@ -249,20 +264,20 @@ print_entry (int type, void *data, int num_nums, int *match_indices, gboolean co
 	case PROTOCOL_ID(method): { \
 		const int pes_size G_GNUC_UNUSED = 0; \
 		PrintEntry pes [1] G_GNUC_UNUSED; \
-		printf ("%s", #method + strlen ("binary_protocol_"));
+		printf ("%s", &#method [sizeof ("binary_protocol_") - 1]);
 #define BEGIN_PROTOCOL_ENTRY1(method,t1,f1) \
 	case PROTOCOL_ID(method): { \
-		PROTOCOL_STRUCT (method) *entry = data; \
+		PROTOCOL_STRUCT (method) *entry = (PROTOCOL_STRUCT (method)*)data; \
 		const int pes_size G_GNUC_UNUSED = 1; \
 		PrintEntry pes [1] G_GNUC_UNUSED; \
 		pes [0].type = t1; \
 		pes [0].name = #f1; \
 		pes [0].data = &entry->f1; \
 		pes [0].color = index_color(0, num_nums, match_indices); \
-		printf ("%s ", #method + strlen ("binary_protocol_"));
+		printf ("%s ", &#method [strlen ("binary_protocol_")]);
 #define BEGIN_PROTOCOL_ENTRY2(method,t1,f1,t2,f2) \
 	case PROTOCOL_ID(method): { \
-		PROTOCOL_STRUCT (method) *entry = data; \
+		PROTOCOL_STRUCT (method) *entry = (PROTOCOL_STRUCT (method)*)data; \
 		const int pes_size G_GNUC_UNUSED = 2; \
 		PrintEntry pes [2] G_GNUC_UNUSED; \
 		pes [0].type = t1; \
@@ -273,10 +288,10 @@ print_entry (int type, void *data, int num_nums, int *match_indices, gboolean co
 		pes [1].name = #f2; \
 		pes [1].data = &entry->f2; \
 		pes [1].color = index_color(1, num_nums, match_indices); \
-		printf ("%s ", #method + strlen ("binary_protocol_"));
+		printf ("%s ", &#method [strlen ("binary_protocol_")]);
 #define BEGIN_PROTOCOL_ENTRY3(method,t1,f1,t2,f2,t3,f3) \
 	case PROTOCOL_ID(method): { \
-		PROTOCOL_STRUCT (method) *entry = data; \
+		PROTOCOL_STRUCT (method) *entry = (PROTOCOL_STRUCT (method)*)data; \
 		const int pes_size G_GNUC_UNUSED = 3; \
 		PrintEntry pes [3] G_GNUC_UNUSED; \
 		pes [0].type = t1; \
@@ -291,10 +306,10 @@ print_entry (int type, void *data, int num_nums, int *match_indices, gboolean co
 		pes [2].name = #f3; \
 		pes [2].data = &entry->f3; \
 		pes [2].color = index_color(2, num_nums, match_indices); \
-		printf ("%s ", #method + strlen ("binary_protocol_"));
+		printf ("%s ", &#method [strlen ("binary_protocol_")]);
 #define BEGIN_PROTOCOL_ENTRY4(method,t1,f1,t2,f2,t3,f3,t4,f4) \
 	case PROTOCOL_ID(method): { \
-		PROTOCOL_STRUCT (method) *entry = data; \
+		PROTOCOL_STRUCT (method) *entry = (PROTOCOL_STRUCT (method)*)data; \
 		const int pes_size G_GNUC_UNUSED = 4; \
 		PrintEntry pes [4] G_GNUC_UNUSED; \
 		pes [0].type = t1; \
@@ -313,10 +328,10 @@ print_entry (int type, void *data, int num_nums, int *match_indices, gboolean co
 		pes [3].name = #f4; \
 		pes [3].data = &entry->f4; \
 		pes [3].color = index_color(3, num_nums, match_indices); \
-		printf ("%s ", #method + strlen ("binary_protocol_"));
+		printf ("%s ", &#method [strlen ("binary_protocol_")]);
 #define BEGIN_PROTOCOL_ENTRY5(method,t1,f1,t2,f2,t3,f3,t4,f4,t5,f5) \
 	case PROTOCOL_ID(method): { \
-		PROTOCOL_STRUCT (method) *entry = data; \
+		PROTOCOL_STRUCT (method) *entry = (PROTOCOL_STRUCT (method)*)data; \
 		const int pes_size G_GNUC_UNUSED = 5; \
 		PrintEntry pes [5] G_GNUC_UNUSED; \
 		pes [0].type = t1; \
@@ -339,10 +354,10 @@ print_entry (int type, void *data, int num_nums, int *match_indices, gboolean co
 		pes [4].name = #f5; \
 		pes [4].data = &entry->f5; \
 		pes [4].color = index_color(4, num_nums, match_indices); \
-		printf ("%s ", #method + strlen ("binary_protocol_"));
+		printf ("%s ", &#method [strlen ("binary_protocol_")]);
 #define BEGIN_PROTOCOL_ENTRY6(method,t1,f1,t2,f2,t3,f3,t4,f4,t5,f5,t6,f6) \
 	case PROTOCOL_ID(method): { \
-		PROTOCOL_STRUCT (method) *entry = data; \
+		PROTOCOL_STRUCT (method) *entry = (PROTOCOL_STRUCT (method)*)data; \
 		const int pes_size G_GNUC_UNUSED = 6; \
 		PrintEntry pes [6] G_GNUC_UNUSED; \
 		pes [0].type = t1; \
@@ -369,7 +384,7 @@ print_entry (int type, void *data, int num_nums, int *match_indices, gboolean co
 		pes [5].name = #f6; \
 		pes [5].data = &entry->f6; \
 		pes [5].color = index_color(5, num_nums, match_indices); \
-		printf ("%s ", #method + strlen ("binary_protocol_"));
+		printf ("%s ", &#method [strlen ("binary_protocol_")]);
 
 #define BEGIN_PROTOCOL_ENTRY_HEAVY0(method) \
 	BEGIN_PROTOCOL_ENTRY0 (method)
@@ -439,22 +454,22 @@ match_index (mword ptr, int type, void *data)
 	case PROTOCOL_ID (method): {
 #define BEGIN_PROTOCOL_ENTRY1(method,t1,f1) \
 	case PROTOCOL_ID (method): { \
-		PROTOCOL_STRUCT (method) *entry G_GNUC_UNUSED = data;
+		PROTOCOL_STRUCT (method) *entry G_GNUC_UNUSED = (PROTOCOL_STRUCT (method)*)data;
 #define BEGIN_PROTOCOL_ENTRY2(method,t1,f1,t2,f2) \
 	case PROTOCOL_ID (method): { \
-		PROTOCOL_STRUCT (method) *entry G_GNUC_UNUSED = data;
+		PROTOCOL_STRUCT (method) *entry G_GNUC_UNUSED = (PROTOCOL_STRUCT (method)*)data;
 #define BEGIN_PROTOCOL_ENTRY3(method,t1,f1,t2,f2,t3,f3) \
 	case PROTOCOL_ID (method): { \
-		PROTOCOL_STRUCT (method) *entry G_GNUC_UNUSED = data;
+		PROTOCOL_STRUCT (method) *entry G_GNUC_UNUSED = (PROTOCOL_STRUCT (method)*)data;
 #define BEGIN_PROTOCOL_ENTRY4(method,t1,f1,t2,f2,t3,f3,t4,f4) \
 	case PROTOCOL_ID (method): { \
-		PROTOCOL_STRUCT (method) *entry G_GNUC_UNUSED = data;
+		PROTOCOL_STRUCT (method) *entry G_GNUC_UNUSED = (PROTOCOL_STRUCT (method)*)data;
 #define BEGIN_PROTOCOL_ENTRY5(method,t1,f1,t2,f2,t3,f3,t4,f4,t5,f5) \
 	case PROTOCOL_ID (method): { \
-		PROTOCOL_STRUCT (method) *entry G_GNUC_UNUSED = data;
+		PROTOCOL_STRUCT (method) *entry G_GNUC_UNUSED = (PROTOCOL_STRUCT (method)*)data;
 #define BEGIN_PROTOCOL_ENTRY6(method,t1,f1,t2,f2,t3,f3,t4,f4,t5,f5,t6,f6) \
 	case PROTOCOL_ID (method): { \
-		PROTOCOL_STRUCT (method) *entry G_GNUC_UNUSED = data;
+		PROTOCOL_STRUCT (method) *entry G_GNUC_UNUSED = (PROTOCOL_STRUCT (method)*)data;
 
 #define BEGIN_PROTOCOL_ENTRY_HEAVY0(method) \
 	BEGIN_PROTOCOL_ENTRY0 (method)
@@ -489,7 +504,9 @@ match_index (mword ptr, int type, void *data)
 
 #include <mono/sgen/sgen-protocol-def.h>
 
-	default: assert (0);
+	default:
+		assert (0);
+		return 0;
 	}
 }
 
@@ -502,22 +519,22 @@ is_vtable_match (mword ptr, int type, void *data)
 	case PROTOCOL_ID (method): {
 #define BEGIN_PROTOCOL_ENTRY1(method,t1,f1) \
 	case PROTOCOL_ID (method): { \
-		PROTOCOL_STRUCT (method) *entry G_GNUC_UNUSED = data;
+		PROTOCOL_STRUCT (method) *entry G_GNUC_UNUSED = (PROTOCOL_STRUCT (method)*)data;
 #define BEGIN_PROTOCOL_ENTRY2(method,t1,f1,t2,f2) \
 	case PROTOCOL_ID (method): { \
-		PROTOCOL_STRUCT (method) *entry G_GNUC_UNUSED = data;
+		PROTOCOL_STRUCT (method) *entry G_GNUC_UNUSED = (PROTOCOL_STRUCT (method)*)data;
 #define BEGIN_PROTOCOL_ENTRY3(method,t1,f1,t2,f2,t3,f3) \
 	case PROTOCOL_ID (method): { \
-		PROTOCOL_STRUCT (method) *entry G_GNUC_UNUSED = data;
+		PROTOCOL_STRUCT (method) *entry G_GNUC_UNUSED = (PROTOCOL_STRUCT (method)*)data;
 #define BEGIN_PROTOCOL_ENTRY4(method,t1,f1,t2,f2,t3,f3,t4,f4) \
 	case PROTOCOL_ID (method): { \
-		PROTOCOL_STRUCT (method) *entry G_GNUC_UNUSED = data;
+		PROTOCOL_STRUCT (method) *entry G_GNUC_UNUSED = (PROTOCOL_STRUCT (method)*)data;
 #define BEGIN_PROTOCOL_ENTRY5(method,t1,f1,t2,f2,t3,f3,t4,f4,t5,f5) \
 	case PROTOCOL_ID (method): { \
-		PROTOCOL_STRUCT (method) *entry G_GNUC_UNUSED = data;
+		PROTOCOL_STRUCT (method) *entry G_GNUC_UNUSED = (PROTOCOL_STRUCT (method)*)data;
 #define BEGIN_PROTOCOL_ENTRY6(method,t1,f1,t2,f2,t3,f3,t4,f4,t5,f5,t6,f6) \
 	case PROTOCOL_ID (method): { \
-		PROTOCOL_STRUCT (method) *entry G_GNUC_UNUSED = data;
+		PROTOCOL_STRUCT (method) *entry G_GNUC_UNUSED = (PROTOCOL_STRUCT (method)*)data;
 
 #define BEGIN_PROTOCOL_ENTRY_HEAVY0(method) \
 	BEGIN_PROTOCOL_ENTRY0 (method)
@@ -552,7 +569,9 @@ is_vtable_match (mword ptr, int type, void *data)
 
 #include <mono/sgen/sgen-protocol-def.h>
 
-	default: assert (0);
+	default:
+		assert (0);
+		return FALSE;
 	}
 }
 
@@ -566,13 +585,19 @@ sgen_binary_protocol_read_header (EntryStream *stream)
 {
 #ifdef BINPROT_HAS_HEADER
 	char data [MAX_ENTRY_SIZE];
-	int type = read_entry (stream, data);
+	int type = read_entry (stream, data, NULL);
 	if (type == SGEN_PROTOCOL_EOF)
 		return FALSE;
 	if (type == PROTOCOL_ID (binary_protocol_header)) {
 		PROTOCOL_STRUCT (binary_protocol_header) * str = (PROTOCOL_STRUCT (binary_protocol_header) *) data;
-		if (str->check == PROTOCOL_HEADER_CHECK && str->ptr_size == BINPROT_SIZEOF_VOID_P)
+		if (str->check == PROTOCOL_HEADER_CHECK && str->ptr_size == BINPROT_SIZEOF_VOID_P) {
+			if (str->version > PROTOCOL_HEADER_VERSION) {
+				fprintf (stderr, "The file contains a newer version %d. We support up to %d. Please update.\n", str->version, PROTOCOL_HEADER_VERSION);
+				exit (1);
+			}
+			file_version = str->version;
 			return TRUE;
+		}
 	}
 	return FALSE;
 #else
@@ -595,6 +620,7 @@ GREP_ENTRIES_FUNCTION_NAME (EntryStream *stream, int num_nums, long nums [], int
 			gboolean dump_all, gboolean pause_times, gboolean color_output, unsigned long long first_entry_to_consider)
 {
 	int type;
+	unsigned char worker_index;
 	void *data = g_malloc0 (MAX_ENTRY_SIZE);
 	int i;
 	gboolean pause_times_stopped = FALSE;
@@ -607,13 +633,13 @@ GREP_ENTRIES_FUNCTION_NAME (EntryStream *stream, int num_nums, long nums [], int
 		return FALSE;
 
 	entry_index = 0;
-	while ((type = read_entry (stream, data)) != SGEN_PROTOCOL_EOF) {
+	while ((type = read_entry (stream, data, &worker_index)) != SGEN_PROTOCOL_EOF) {
 		if (entry_index < first_entry_to_consider)
 			goto next_entry;
 		if (pause_times) {
 			switch (type) {
 			case PROTOCOL_ID (binary_protocol_world_stopping): {
-				PROTOCOL_STRUCT (binary_protocol_world_stopping) *entry = data;
+				PROTOCOL_STRUCT (binary_protocol_world_stopping) *entry = (PROTOCOL_STRUCT (binary_protocol_world_stopping)*)data;
 				assert (!pause_times_stopped);
 				pause_times_concurrent = FALSE;
 				pause_times_finish = FALSE;
@@ -628,7 +654,7 @@ GREP_ENTRIES_FUNCTION_NAME (EntryStream *stream, int num_nums, long nums [], int
 				pause_times_concurrent = TRUE;
 				break;
 			case PROTOCOL_ID (binary_protocol_world_restarted): {
-				PROTOCOL_STRUCT (binary_protocol_world_restarted) *entry = data;
+				PROTOCOL_STRUCT (binary_protocol_world_restarted) *entry = (PROTOCOL_STRUCT (binary_protocol_world_restarted)*)data;
 				assert (pause_times_stopped);
 				printf ("pause-time %d %d %d %lld %lld\n",
 						entry->generation,
@@ -662,7 +688,7 @@ GREP_ENTRIES_FUNCTION_NAME (EntryStream *stream, int num_nums, long nums [], int
 			if (dump_all)
 				printf (match ? "* " : "  ");
 			if (match || dump_all)
-				print_entry (type, data, num_nums, match_indices, color_output);
+				print_entry (type, data, num_nums, match_indices, color_output, worker_index);
 		}
 	next_entry:
 		++entry_index;
